@@ -4,6 +4,7 @@ import { CasePanel } from '../panels/CasePanel'
 import { RightPanel } from '../panels/RightPanel'
 import { PageRouter } from '../pages/PageRouter'
 import { SubmissionModal } from '../end/SubmissionModal'
+import { MobilePanels } from './MobilePanels'
 import { useCase } from '../../state/caseContext'
 import { useGameStore } from '../../store/gameStore'
 
@@ -43,6 +44,7 @@ export function GameLayout() {
         </aside>
       </div>
       <SubmissionModal />
+      <MobilePanels />
       <ObjectiveWatcher />
     </div>
   )

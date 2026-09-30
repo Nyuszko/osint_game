@@ -12,11 +12,18 @@ const seenVariants = new Map<string, number>()
 
 for (let i = 0; i < count; i++) {
   const code = randomSeedCode()
-  const level = i % 2 === 0 ? 2 : 3
+  const level = ((i % 4) + 2) as 2 | 3 | 4 | 5
   try {
     const c = generateCase(code, { variant: 'random', level })
     const errs = validateCase(c)
-    const variant = c.tagline.includes('fejlesztő') ? 'missing' : c.tagline.includes('számlák') ? 'fraud' : 'identity'
+    const variant =
+      c.tagline.includes('fejlesztő')
+        ? 'missing'
+        : c.tagline.includes('számlák')
+          ? 'fraud'
+          : c.tagline.includes('bennfentes')
+            ? 'bec'
+            : 'identity'
     seenVariants.set(variant, (seenVariants.get(variant) ?? 0) + 1)
     if (errs.length > 0) {
       failed = true

@@ -1,20 +1,8 @@
 import { useState } from 'react'
-import { ArrowLeft, FileWarning, RotateCcw, ShieldCheck, Trophy } from 'lucide-react'
+import { ArrowLeft, FileWarning, RotateCcw, Share2, ShieldCheck, Trophy } from 'lucide-react'
 import { useCase } from '../../state/caseContext'
 import { useGameStore } from '../../store/gameStore'
-
-function scoreOf(clueCount: number, connCount: number, attempts: number) {
-  const correct = 4
-  const raw = correct * 120 + clueCount * 15 + connCount * 25 - attempts * 40
-  return Math.max(0, raw)
-}
-
-function rankOf(score: number): { rank: string; cls: string } {
-  if (score >= 620) return { rank: 'S', cls: 'text-amber-300 border-amber-400/50 bg-amber-400/10' }
-  if (score >= 520) return { rank: 'A', cls: 'text-emerald-300 border-emerald-400/50 bg-emerald-400/10' }
-  if (score >= 400) return { rank: 'B', cls: 'text-sky-300 border-sky-400/50 bg-sky-400/10' }
-  return { rank: 'C', cls: 'text-zinc-300 border-zinc-500/50 bg-zinc-500/10' }
-}
+import { scoreOf, rankOf } from '../../lib/score'
 
 export function EndScreen() {
   const c = useCase()
@@ -22,16 +10,32 @@ export function EndScreen() {
   const discovered = useGameStore((s) => s.discovered)
   const connections = useGameStore((s) => s.connections)
   const attempts = useGameStore((s) => s.attempts)
+  const hints = useGameStore((s) => s.hints)
   const startedAt = useGameStore((s) => s.startedAt)
   const restart = useGameStore((s) => s.restartCase)
   const backToMenu = useGameStore((s) => s.backToMenu)
+  const pushToast = useGameStore((s) => s.pushToast)
 
   const won = screen === 'won'
   // Az időt csak egyszer számoljuk ki (a képernyő megnyitásakor), hogy a render tisztán maradjon.
   const [minutes] = useState(() => (startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 60000)) : 0))
-  const score = scoreOf(discovered.length, connections.length, attempts)
+  const score = scoreOf(discovered.length, connections.length, attempts, hints.length)
   const { rank, cls } = rankOf(score)
   const perfectClues = discovered.length === c.clues.length
+
+  const share = async () => {
+    const lines = [
+      `CASEFILE · ${c.code} · „${c.title}”`,
+      `Rang: ${rank} (${score} pont) · ~${minutes} perc`,
+      `Nyomok ${discovered.length}/${c.clues.length} · Összefüggések ${connections.length}/${c.connections.length} · Tipp: ${hints.length} · Hibás beküldés: ${attempts}`,
+    ]
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'))
+      pushToast({ kind: 'info', title: 'Eredmény a vágólapon', text: 'Illeszd be bárhova, és oszd meg!' })
+    } catch {
+      pushToast({ kind: 'error', title: 'Nem sikerült másolni', text: 'A böngésző nem engedte a vágólap használatát.' })
+    }
+  }
 
   return (
     <div className="bg-grid thin-scroll h-full overflow-y-auto">
@@ -52,6 +56,7 @@ export function EndScreen() {
               <Row label="Felfedezett nyomok" value={`${discovered.length} × 15`} />
               <Row label="Összefüggések" value={`${connections.length} × 25`} />
               <Row label="Hibás beküldések" value={`−${attempts} × 40`} />
+              <Row label="Tippek" value={`−${hints.length} × 30`} />
               <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2 font-bold text-amber-300">
                 <span>Összpontszám</span>
                 <span className="font-mono text-lg">{score}</span>
@@ -102,6 +107,14 @@ export function EndScreen() {
           >
             <RotateCcw className="size-4" /> Újrajátszás
           </button>
+          {won && (
+            <button
+              onClick={share}
+              className="flex cursor-pointer items-center gap-2 rounded-lg bg-violet-500 px-5 py-2.5 text-sm font-bold text-white shadow transition-colors hover:bg-violet-400"
+            >
+              <Share2 className="size-4" /> Eredmény megosztása
+            </button>
+          )}
           <button
             onClick={backToMenu}
             className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 px-5 py-2.5 text-sm font-semibold text-zinc-300 transition-colors hover:border-white/30 hover:text-zinc-100"

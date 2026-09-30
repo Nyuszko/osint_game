@@ -87,6 +87,15 @@ export function buildIndex(c: GameCase): SearchEntry[] {
           break
         case 'webmail':
           break
+        case 'chat':
+          entries.push({
+            url: p.url,
+            title: `${p.partner} – közvetlen üzenetek`,
+            site: site.name,
+            snippet: plain(p.messages[0]?.body),
+            keywords: [p.partner, p.partnerHandle, 'dm', 'üzenet', 'chat', p.account],
+          })
+          break
       }
     }
   }

@@ -1,0 +1,16 @@
+{
+  "name": "CASEFILE – fiktív OSINT nyomozós játék",
+  "short_name": "CASEFILE",
+  "description": "Túrd át a fiktív internetet, kösd össze a nyomokat és oldd meg az ügyet – böngészőben, offline is.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#f59e0b",
+  "lang": "hu",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

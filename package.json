@@ -11,7 +11,8 @@
     "verify": "tsx scripts/verify-case.ts",
     "gen-test": "tsx scripts/gen-test.ts 30",
     "sim": "tsx scripts/sim-play.ts",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -30,6 +31,7 @@
     "puppeteer-core": "^25.12.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.2"
   }
 }

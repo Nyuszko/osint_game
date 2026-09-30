@@ -99,6 +99,15 @@ export interface EmailData {
   phishing?: boolean
 }
 
+export interface ChatMsg {
+  id: string
+  /** 'me' = a megfigyelt fiók tulajdonosa, 'them' = a partner */
+  from: 'me' | 'them'
+  author: string
+  time: string
+  body: RichText
+}
+
 export interface MapPin {
   id: string
   x: number // 0–100 %
@@ -151,6 +160,14 @@ export interface WebmailPageData extends PageBase {
   emails: EmailData[]
 }
 
+export interface ChatPageData extends PageBase {
+  kind: 'chat'
+  account: string
+  partner: string
+  partnerHandle: string
+  messages: ChatMsg[]
+}
+
 export interface GalleryPageData extends PageBase {
   kind: 'gallery'
   owner: string
@@ -193,6 +210,7 @@ export type PageData =
   | ProfilePageData
   | ForumPageData
   | WebmailPageData
+  | ChatPageData
   | GalleryPageData
   | NewsPageData
   | CompanyPageData

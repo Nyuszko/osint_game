@@ -8,3 +8,12 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// PWA: service worker éles buildben (offline futáshoz)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('sw.js').catch(() => {
+      /* nem kritikus: SW nélkül is játszható */
+    })
+  })
+}

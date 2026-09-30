@@ -1,10 +1,11 @@
-﻿// ============================================================
+// ============================================================
 // „Végtelen akták” generátor
 // Determinisztikus: ugyanaz a kód (pl. K7F2Q) mindig ugyanazt az
 // esetet adja. Minden név, cég és helyszín KITALÁLT.
 // ============================================================
 
 import type {
+  ChatMsg,
   Clue,
   Connection,
   EmailData,
@@ -38,7 +39,7 @@ import {
   VILLAGES,
 } from './pools'
 
-export type CaseVariant = 'missing' | 'fraud' | 'identity'
+export type CaseVariant = 'missing' | 'fraud' | 'identity' | 'bec'
 
 function lo(s: string): string {
   return s.toLowerCase()
@@ -217,7 +218,7 @@ function clueList(n: Names, texts: Record<string, { title: string; description: 
     [CLUE_IDS.ticket]: { source: 'Csevegőhely', category: 'hely' },
     [CLUE_IDS.cabin]: { source: 'Képmegosztó', category: 'hely' },
     [CLUE_IDS.offgrid]: { source: 'KorosNivel Fórum', category: 'egyeb' },
-    [CLUE_IDS.kl]: { source: 'KorosNivel Fórum', category: 'kapcsolat' },
+    [CLUE_IDS.kl]: { source: 'Csevegőhely – üzenetek', category: 'kapcsolat' },
     [CLUE_IDS.press]: { source: 'KorosNivel Fórum', category: 'kapcsolat' },
     [CLUE_IDS.seen]: { source: 'hírportál', category: 'hely' },
     [CLUE_IDS.mapcabin]: { source: 'Térkép.Élő', category: 'hely' },
@@ -285,6 +286,7 @@ interface CoreOpts {
   galleryUrl: string
   newsUrl: string
   blogUrl: string
+  dm: { url: string; partner: string; handle: string; messages: ChatMsg[] }
   bioSegs: RichSeg[]
   posts: PostData[]
   repos: RepoData[]
@@ -340,13 +342,23 @@ function buildSites(n: Names, rng: Rng, opts: CoreOpts): GameCase['websites'] {
           displayName: n.victim.full,
           handle: n.victim.social,
           avatarSeed: `soc-${n.victim.full}`,
-          bio: RT('kód, kávé, csend. | ', T(n.company.name), ' | Korosfalu'),
+          bio: RT('kód, kávé, csend. | ', T(n.company.name), ' | Korosfalu · ', L('üzenetek', opts.dm.url)),
           meta: [
             { label: 'Követők', value: RT(String(rng.int(300, 2400))) },
             { label: 'Követett', value: RT(String(rng.int(80, 400))) },
             { label: 'Hely', value: RT('Korosfalu, HU') },
           ],
           posts: opts.posts,
+        },
+        {
+          kind: 'chat',
+          url: opts.dm.url,
+          title: `Közvetlen üzenetek – ${opts.dm.partner} – Csevegőhely`,
+          siteName: 'Csevegőhely',
+          account: n.victim.social,
+          partner: opts.dm.partner,
+          partnerHandle: opts.dm.handle,
+          messages: opts.dm.messages,
         },
       ],
     },
@@ -546,7 +558,7 @@ function missingPack(n: Names, rng: Rng): Pack {
       },
       [CLUE_IDS.kl]: {
         title: 'A titokzatos „K.L.”',
-        description: 'Fórumozótársainak csak annyit árult el: „a témáról csak egy emberrel beszélek: K.L.”',
+        description: 'A csevegő üzeneteiben egy „K.L.” figurával egyeztetett: Ő az, akivel a témáról beszélt.',
       },
       [CLUE_IDS.press]: {
         title: `${n.contact.last} ${n.contact.first[0]}. – oknyomozó újságíró`,
@@ -665,7 +677,7 @@ function fraudPack(n: Names, rng: Rng): Pack {
       },
       [CLUE_IDS.kl]: {
         title: 'A titokzatos „K.L.”',
-        description: 'Fórumozótársainak csak annyit árult el: „a témáról csak egy emberrel beszélek: K.L.”',
+        description: 'A csevegő üzeneteiben egy „K.L.” figurával egyeztetett: Ő az, akivel a témáról beszélt.',
       },
       [CLUE_IDS.press]: {
         title: `${n.contact.last} ${n.contact.first[0]}. – oknyomozó újságíró`,
@@ -784,7 +796,7 @@ function identityPack(n: Names, rng: Rng): Pack {
       },
       [CLUE_IDS.kl]: {
         title: 'A titokzatos „K.L.”',
-        description: 'A fórumon csak annyit árult el: „a témáról csak egy emberrel beszélek: K.L.”',
+        description: 'A csevegő üzeneteiben egy „K.L.” figurával egyeztetett: Ő az, akivel a témáról beszélt.',
       },
       [CLUE_IDS.press]: {
         title: `${n.contact.last} ${n.contact.first[0]}. – oknyomozó újságíró`,
@@ -842,11 +854,130 @@ function identityPack(n: Names, rng: Rng): Pack {
   }
 }
 
+function becPack(n: Names, rng: Rng): Pack {
+  return {
+    title: rng.pick(['Az átutaló', 'Főnök nevében', 'A hetedik számla']),
+    tagline: 'Hamis vezetői levelek, rejtett utalások. Egy bennfentes hallgat.',
+    briefing: [
+      `${n.victim.full}, a(z) ${n.company.name} fizetési rendszerének üzemeltetésért felelős szakembere szeptember 11-én eltűnt: nem jelentkezett, a telefonja is elérhetetlen.`,
+      'A cég rendben lévő „szabadságot” lát, a család pánikban van. Az online térben viszont ott vannak a nyomok: levelek, posztok, beszélgetések, fotók.',
+      'Kutass: hová rejtőzött, kivel beszélt, milyen visszaélést talált a rendszerben, és miért kellett eltűnnie.',
+      'Minden szereplő és helyszín kitalált.',
+    ],
+    texts: {
+      [CLUE_IDS.commit]: {
+        title: 'Utolsó commit: hamis utalási sablon',
+        description: `Az utolsó commit a ${n.project.name} repóban: „security: hamis vezetői utalási sablon letiltása” – röviddel ezután a repót archiválták.`,
+      },
+      [CLUE_IDS.proj]: {
+        title: `${n.project.name} – automatikus fizetési motor`,
+        description: `A(z) ${n.company.name} rendszere a „vezetői e-mail utasítások” alapján önállóan utal – ${n.project.tagline} keretében.`,
+      },
+      [CLUE_IDS.misuse]: {
+        title: 'Hamis vezetői levelek – kifizetések idegen számlára',
+        description: 'A blogbejegyzés szerint a vezér nevében érkező, de hamis címről küldött levelekre a rendszer magától utalt; a pénz egyetlen, korábban sosem látott számlára futott be.',
+      },
+      [CLUE_IDS.threat]: {
+        title: 'Ismeretlen fenyegetések',
+        description: 'A blog szerint mióta jelezte a szabálytalanságot, ismeretlen számok hívogatják, és kétszer is ott fordult a kilincs a lakásában.',
+      },
+      [CLUE_IDS.burnout]: {
+        title: 'Kiégség jelei',
+        description: 'A hírfolyamon hetek óta kiégésről írt. Sokan ezért hiszik, hogy csak elment pihenni.',
+      },
+      [CLUE_IDS.pm]: {
+        title: `${n.pm.full} nyomása`,
+        description: `A pénzügyi vezető nyilvánosan szúrta ki, hogy „nem kell mindent felnagyítani”; a válasz szerint ${n.pm.full} „a naplókat akarja, mindenáron”.`,
+      },
+      [CLUE_IDS.offer]: {
+        title: `${n.hr.company} ajánlata`,
+        description: `${n.hr.full} (HR) versenyeztető ajánlatot küldött: 25%-kal magasabb fizetés, szept. 15-i határidővel.`,
+      },
+      [CLUE_IDS.family]: {
+        title: `${n.relative.first} aggódó levele`,
+        description: `A ${n.relative.relation} hetek óta nem tudja felhívni, és levelezésben közölte: ha ez így megy tovább, személyesen keresi fel.`,
+      },
+      [CLUE_IDS.coords]: {
+        title: 'Koordináták a titkos postafiókból',
+        description: `Egy ${n.secretMail} címről küldött levél koordinátákat ad: ${n.place.coords} – a ${n.place.lake} északnyugati partja.`,
+      },
+      [CLUE_IDS.ticket]: {
+        title: 'Vonatjegy a zsebben',
+        description: `Szept. 11-én „néhány napra kikapcsolok” felirattal fotózott fel egy Korosfalu → ${n.place.village} vasútjegyet.`,
+      },
+      [CLUE_IDS.cabin]: {
+        title: `Füst a ${n.place.spotShort}ból`,
+        description: `Egy fotós szerint a ${n.place.lake} északnyugati partján álló, évek óta üres ${n.place.spot}ből mostanában füst száll fel – valaki ott lakik.`,
+      },
+      [CLUE_IDS.offgrid]: {
+        title: 'Off-grid kutatás a fórumon',
+        description: 'A KorosNivel fórumon off-grid életről kérdezett: napelem, kút, jelmentes völgyek – hetekkel az eltűnése előtt.',
+      },
+      [CLUE_IDS.kl]: {
+        title: 'A titokzatos „K.L.”',
+        description: 'A csevegő üzeneteiben egy „K.L.” figurával egyeztetett: Ő az, akivel a témáról beszélt.',
+      },
+      [CLUE_IDS.press]: {
+        title: `${n.contact.last} ${n.contact.first[0]}. – oknyomozó újságíró`,
+        description: `A fórumon feltűnt a(z) ${n.contact.outlet} (${n.contact.outletDesc}) újságírója: „bátran írj – diszkréten, titkosítva”.`,
+      },
+      [CLUE_IDS.seen]: {
+        title: `Utolsó látmány: ${n.place.village} állomás`,
+        description: `A hírcikk szerint az utolsó hiteles látmány szept. 11-én a ${n.place.village.toLowerCase()}i vasútállomás kameráin készült; a tó felé indult gyalog.`,
+      },
+      [CLUE_IDS.mapcabin]: {
+        title: `A ${n.place.spotShort} a térképen`,
+        description: `A térkép pontosan a koordinátáknál jelöl egy „${n.place.spot} – használaton kívüli” pontot a tó északnyugati partján.`,
+      },
+      [CLUE_IDS.dLeak]: {
+        title: 'Leleplezésre készült',
+        description: `Az anyag ${n.contact.last} ${n.contact.first}hez, a(z) ${n.contact.outlet} újságírójához került – innen a titkolózás.`,
+      },
+      [CLUE_IDS.dLocation]: {
+        title: `Rejtőzködés a ${n.place.spotShort}ban`,
+        description: `A koordináták és a füstös ${n.place.spotShort} egybeesnek: ott bujkál, a ${n.place.lake} északnyugati partján.`,
+      },
+      [CLUE_IDS.dReason]: {
+        title: 'Az eltűnés oka: leleplezés + fenyegetés',
+        description: 'Azért tűnt el, mert leleplezte a hamis vezetői levelekre futó kifizetéseket; a fenyegetések miatt biztonságos búvóhelyen várta, míg az anyag célba ér.',
+      },
+    },
+    q: {
+      prompts: [
+        'Hová rejtőzött el?',
+        'Kivel tartotta a kapcsolatot az eltűnése előtt?',
+        'Milyen rendszert használtak ki a támadók?',
+        'Miért tűnt el?',
+      ],
+      correct: [
+        `A ${n.place.lake} északnyugati partján álló ${n.place.spot}ba`,
+        `${n.contact.last} ${n.contact.first} – a(z) ${n.contact.outlet} újságírója`,
+        `A ${n.project.name} automatikus fizetési motoron`,
+        'Mert leleplezte a hamis vezetői levelekre futó kifizetéseket, és fenyegetve érezte magát',
+      ],
+      requires: [CLUE_IDS.dLocation, CLUE_IDS.press, CLUE_IDS.proj, CLUE_IDS.dReason],
+      distractors: [
+        [`A ${n.hr.company} új irodájába költözött`, 'Külföldre szökött egy rejtélyes állás miatt', 'A korosfalui lakásában rejtőzködik tovább'],
+        [`${n.pm.full} pénzügyi vezető`, `${n.hr.full} (${n.hr.company}, HR)`, 'Egy ismeretlen kriptobefektető'],
+        ['A cég e-mail szerverén', 'A beléptetőrendszeren', 'A webshop fizetési felületén'],
+        ['Kiégett, csak pihenőre ment', 'Adósságai elől menekült', 'Egy jól fizető külföldi állás miatt költözött'],
+      ],
+    },
+    recap: [
+      `${n.victim.full} a(z) ${n.company.name} ${n.project.name} nevű fizetési motorját üzemeltette: a rendszer a „vezetői e-mail utasításokra” önállóan utalt.`,
+      `Csalók a vezér nevében – de hamis címről – utalást rendeltek el; a pénz egyetlen korábban sosem látott számlára futott be. ${n.victim.full} ezt dokumentálta, majd belsőleg szólt.`,
+      `A válasz lenyugtatás helyett nyomás és fenyegetés volt. Ekkor oknyomozó újságíróhoz fordult: ${n.contact.last} ${n.contact.first}hez, a(z) ${n.contact.outlet} munkatársához, akinek átadta a naplókat.`,
+      `Szeptember 11-én vonattal ${n.place.village}re utazott, majd a ${n.place.lake} északnyugati partján álló, évek óta üresen álló ${n.place.spot}ba húzódott vissza, ahol jelmentes búvóhelyen várta, míg az anyag napvilágot lát.`,
+      'A hírportál tévesen kiégésre gyanakodott; valójában egy business e-mail compromise (BEC) visszaélést leleplező informátor rejtőzött el szándékosan.',
+    ],
+  }
+}
+
 // ------------------------------------------------------------
 // Oldaltartalmak
 // ------------------------------------------------------------
 
-function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
+function buildCore(n: Names, rng: Rng, noise: number) {
   const socialUrl = `csevegohely.social/${n.victim.social}`
   const devHandleUrl = n.victim.social
   const mailUrl = `mail.${n.company.domain}`
@@ -989,7 +1120,7 @@ function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
           author: n.victim.forum,
           handle: n.victim.forum,
           time: DATES.forum2,
-          body: RT('Köszönöm. ', E(CLUE_IDS.kl, 'Jelzem: a témáról csak egy emberrel folytatom a beszélgetést: K.L.'), ' Ennyi.'),
+          body: RT('Köszönöm. ', B('Jelzem: a témáról csak egy emberrel folytatom a beszélgetést.'), ' Ennyi.'),
         },
       ],
     },
@@ -1009,7 +1140,7 @@ function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
       ],
     },
   ]
-  if (extraNoise) {
+  if (noise >= 1) {
     threads.push({
       id: 'th-4',
       title: 'Ki tud ajánlani jó kemencevarró mestert?',
@@ -1017,6 +1148,29 @@ function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
       posts: [
         { op: true, author: forumHelper, handle: forumHelper, time: 'szept. 01.', body: RT('A régi kemence reped, varratni kellene. Ajánlások?') },
         { author: 'furesz_tibi', handle: 'furesz_tibi', time: 'szept. 01.', body: RT('Nálunk a Kovács bácsi dolgozott, korrekt ár.') },
+      ],
+    })
+  }
+  if (noise >= 2) {
+    threads.push({
+      id: 'th-5',
+      title: 'Gombászok: idén számítani lehet a rókagombára?',
+      replies: 6,
+      posts: [
+        { op: true, author: 'erdo_jaró', handle: 'erdo_jaro', time: 'szept. 03.', body: RT('Az esők után jó szelesedés várható a fenyvesekben. Ki volt már odalent?') },
+        { author: 'szkeptikus_bela', handle: 'szkeptikus_bela', time: 'szept. 03.', body: RT('A helyek titkát őrzni kell. Kérdezz-googlezz.') },
+      ],
+    })
+  }
+  if (noise >= 3) {
+    threads.push({
+      id: 'th-6',
+      title: 'VITA: a régi híd helyére körforgalom kellene?',
+      replies: 31,
+      posts: [
+        { op: true, author: 'sofor_imi', handle: 'sofor_imi', time: 'szept. 05.', body: RT('A híd szűk, a körforgalom megoldaná a reggeli dugót. Vélemények?') },
+        { author: 'kertesz_anna', handle: 'kertesz_anna', time: 'szept. 05.', body: RT('Egy faluban körforgalom? Hová, a templom köré?') },
+        { author: 'sofor_imi', handle: 'sofor_imi', time: 'szept. 05.', body: RT('Még egy tábla és mindenki boldog.') },
       ],
     })
   }
@@ -1102,7 +1256,7 @@ function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
       ),
     },
   ]
-  if (extraNoise) {
+  if (noise >= 1) {
     emails.push({
       id: 'em-6',
       from: 'KriptoNyereség Klub',
@@ -1110,6 +1264,36 @@ function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
       subject: 'Végre: 340% hozam 3 hónap alatt?',
       date: 'szept. 07. · 19:02',
       body: RT('Korlátozott helyek!', '\n\n', B('Befektess most, és vedd vissza kétszeresen.'), '\n\n', 'Ez nem befektetési tanácsadás. Egyáltalán nem.'),
+    })
+  }
+  if (noise >= 2) {
+    emails.push({
+      id: 'em-7',
+      from: 'SzuperSorsolás',
+      fromEmail: 'nyertes@szupersorsolas-tegnap.net',
+      subject: 'Ön nyert! (utolsó felszólítás)',
+      date: 'szept. 08. · 08:47',
+      body: RT('Kedves Címzett!', '\n\n', 'E-mail címét sorsoláson találtuk. ', B('Küldd el a lakcímedet az ajándékért.'), '\n\n', 'Üdv: Díj-osztály'),
+    })
+  }
+  if (noise >= 3) {
+    const phish2 = rng.pick(PHISH_FROMS.filter((p) => p.email !== phish.email))
+    emails.push({
+      id: 'em-8',
+      phishing: true,
+      from: phish2.from,
+      fromEmail: phish2.email,
+      subject: 'CSOMAGJÁT VÁM-ELLENŐRZÉS ALATT TARTJUK',
+      date: 'szept. 08. · 21:15',
+      body: RT('Tisztelt Ügyfél!', '\n\n', 'Csomagja átvételehez ', B('adja meg bankkártya-adatait az azonosításhoz'), '.', '\n\n', 'Posta Ügyfélszolgálat'),
+    })
+    emails.push({
+      id: 'em-9',
+      from: 'Értesítő+',
+      fromEmail: 'hirlevel@ertesito-plus-hirek.info',
+      subject: 'Ezt a 7 szokást minden lakótárs utálja!',
+      date: 'szept. 09. · 06:30',
+      body: RT('Kattints a listáért!', '\n\n', 'Egy kattintás = egy támogatás. Vagy kettő. Minden így működik.'),
     })
   }
 
@@ -1278,6 +1462,62 @@ function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
     B('szabadság.'),
   )
 
+  // ---- közvetlen üzenetek (Csevegőhely DM) ----
+  const dmUrl = `${socialUrl}/uzenetek`
+  const dm: CoreOpts['dm'] = {
+    url: dmUrl,
+    partner: 'K. L.',
+    handle: '@kl_forrasvedo',
+    messages: [
+      {
+        id: 'dm-1',
+        from: 'me',
+        author: n.victim.full,
+        time: 'szept. 05. · 22:10',
+        body: RT('Na. Úgy döntöttem, beszélek. De csak egy emberrel.'),
+      },
+      {
+        id: 'dm-2',
+        from: 'them',
+        author: 'K. L.',
+        time: 'szept. 05. · 22:12',
+        body: RT('Jó, hogy itt látod magad – ez a csatorna nem naplóz. Beszélj.'),
+      },
+      {
+        id: 'dm-3',
+        from: 'me',
+        author: n.victim.full,
+        time: 'szept. 05. · 22:14',
+        body: RT(
+          'A fórumos mondatom komoly volt: ',
+          E(CLUE_IDS.kl, 'a témáról csak veled folytatom, K.L. – mert te forrásként név nélkül kezelsz'),
+          '. De előbb garanciát kérek.',
+        ),
+      },
+      {
+        id: 'dm-4',
+        from: 'them',
+        author: 'K. L.',
+        time: 'szept. 05. · 22:19',
+        body: RT('Garancia: titkosított csatorna, ellenőrzött tények, forrásvédelem. Ha jön az anyag, én védem.'),
+      },
+      {
+        id: 'dm-5',
+        from: 'me',
+        author: n.victim.full,
+        time: 'szept. 06. · 07:03',
+        body: RT('A dokumentumok hamarosan megérkeznek. Utána egy időre eltűnöm.'),
+      },
+      {
+        id: 'dm-6',
+        from: 'them',
+        author: 'K. L.',
+        time: 'szept. 06. · 07:41',
+        body: RT('Csak ne tűnj el nyomtalanul. Ha biztonságban vagy, jelizz egy rövid jelzéssel.'),
+      },
+    ],
+  }
+
   return {
     socialUrl,
     devHandleUrl,
@@ -1285,6 +1525,7 @@ function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
     galleryUrl: 'kepmegoszto.hu/pixelvadasz/osz-vizek',
     newsUrl: 'napi.pulzus/cikk/eltunt-szakember',
     blogUrl: lo(n.victim.first) + lo(n.victim.last) + '.dev',
+    dm,
     bioSegs,
     posts,
     repos,
@@ -1304,20 +1545,30 @@ function buildCore(n: Names, rng: Rng, extraNoise: boolean) {
 
 export interface GenerateOptions {
   variant?: CaseVariant | 'random'
-  level?: 2 | 3
+  level?: 2 | 3 | 4 | 5
 }
 
 export function generateCase(code: string, opts: GenerateOptions = {}): GameCase {
   if (!SEED_RE.test(code)) throw new Error(`Érvénytelen esetkód: ${code}`)
   const rng = new Rng(code)
   const variant: CaseVariant =
-    !opts.variant || opts.variant === 'random' ? rng.pick(['missing', 'fraud', 'identity'] as const) : opts.variant
+    !opts.variant || opts.variant === 'random'
+      ? rng.pick(['missing', 'fraud', 'identity', 'bec'] as const)
+      : opts.variant
   const level = opts.level ?? 2
-  const extraNoise = level >= 3
+  // 0 = tiszta, 1 = extra tévutak (3), 2 = sok tévút (4), 3 = extrém zaj (5)
+  const noise = Math.max(0, Math.min(3, level - 2))
 
   const n = pickNames(rng)
-  const pack = variant === 'missing' ? missingPack(n, rng) : variant === 'fraud' ? fraudPack(n, rng) : identityPack(n, rng)
-  const core = buildCore(n, rng, extraNoise)
+  const pack =
+    variant === 'missing'
+      ? missingPack(n, rng)
+      : variant === 'fraud'
+        ? fraudPack(n, rng)
+        : variant === 'identity'
+          ? identityPack(n, rng)
+          : becPack(n, rng)
+  const core = buildCore(n, rng, noise)
 
   const gameCase: GameCase = {
     id: `gen-${code}`,
@@ -1325,7 +1576,7 @@ export function generateCase(code: string, opts: GenerateOptions = {}): GameCase
     title: pack.title,
     tagline: pack.tagline,
     briefing: pack.briefing,
-    difficulty: level === 3 ? 3 : 2,
+    difficulty: level as GameCase['difficulty'],
     homeUrl: 'spotlight.kereso',
     searchDomain: 'spotlight.kereso',
     bookmarks: [core.mailUrl, `devkapcsolat.io/${core.devHandleUrl}`, core.socialUrl, 'korosnivel.forum'],

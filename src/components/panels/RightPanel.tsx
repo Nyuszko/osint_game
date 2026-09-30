@@ -3,6 +3,7 @@ import {
   AtSign,
   Briefcase,
   Flame,
+  Lightbulb,
   Link2,
   MapPin,
   NotebookPen,
@@ -15,6 +16,7 @@ import type { ClueCategory } from '../../data/types'
 import { useCase } from '../../state/caseContext'
 import { useCaseActions } from '../../state/useCaseActions'
 import { useGameStore } from '../../store/gameStore'
+import { HINT_COST } from '../../lib/score'
 
 const CAT: Record<ClueCategory, { icon: LucideIcon; cls: string; label: string }> = {
   szemely: { icon: User, cls: 'text-sky-300', label: 'személy' },
@@ -77,10 +79,14 @@ export function RightPanel() {
 
 function CluesList() {
   const discovered = useGameStore((s) => s.discovered)
+  const hints = useGameStore((s) => s.hints)
+  const { useHint: requestHint } = useCaseActions()
   const c = useCase()
   const clues = c.clues.filter((x) => discovered.includes(x.id))
+  const hinted = c.clues.filter((x) => hints.includes(x.id) && !discovered.includes(x.id))
+  const hintable = c.clues.filter((x) => !x.deduction && !discovered.includes(x.id) && !hints.includes(x.id))
 
-  if (clues.length === 0) {
+  if (clues.length === 0 && hinted.length === 0) {
     return (
       <div className="p-4 text-xs leading-relaxed text-zinc-600">
         Még nincs nyomod. Az oldalakon a <span className="text-amber-300/80 underline decoration-dotted">kiemelt szövegrészekre</span> kattintva
@@ -115,6 +121,33 @@ function CluesList() {
           </div>
         )
       })}
+
+      {hinted.map((clue) => {
+        const cat = CAT[clue.category]
+        return (
+          <div
+            key={clue.id}
+            className="rounded-lg border border-dashed border-amber-400/30 bg-amber-400/5 p-3"
+          >
+            <div className="flex items-center gap-2">
+              <Lightbulb className="size-3.5 shrink-0 text-amber-300" />
+              <span className="text-xs font-bold text-amber-200">Tipp: {cat.label}</span>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-400">
+              Egy nyomot itt érdemes keresned: <span className="font-mono text-zinc-300">{clue.source}</span>
+            </p>
+          </div>
+        )
+      })}
+
+      {hintable.length > 0 && (
+        <button
+          onClick={() => requestHint()}
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/5 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/10"
+        >
+          <Lightbulb className="size-3.5" /> Tipp kérése (−{HINT_COST} pont)
+        </button>
+      )}
     </div>
   )
 }

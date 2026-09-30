@@ -7,7 +7,10 @@ export const normalizeUrl = (raw: string): string =>
 export function parseGameUrl(url: string): { domain: string; path: string; query: URLSearchParams } {
   const withProto = url.includes('://') ? url : `http://${url}`
   const u = new URL(withProto)
-  return { domain: u.hostname, path: u.pathname.replace(/\/+$/, ''), query: u.searchParams }
+  // A WHATWG URL a path-ban percent-kódol (pl. „ó” → „%C3%B3”) – dekódolunk,
+  // hogy egyezzen a nyers, ékezetes belső URL-ekkel.
+  const rawPath = decodeURIComponent(u.pathname.replace(/\/+$/, ''))
+  return { domain: u.hostname, path: rawPath, query: u.searchParams }
 }
 
 export const fullUrl = (domain: string, path: string): string =>

@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { GameCase } from '../data/types'
+import { scoreOf, rankOf } from '../lib/score'
+import { dailyCode, todayKey } from '../lib/daily'
+import { sfx } from '../lib/sfx'
 
 export type Screen = 'menu' | 'playing' | 'won' | 'lost'
 
@@ -9,6 +12,23 @@ export interface Toast {
   kind: 'clue' | 'connection' | 'objective' | 'info' | 'error'
   title: string
   text?: string
+}
+
+/** Egy lezárt (megoldott vagy bukta) nyomozás eredménye. */
+export interface CaseRecord {
+  code: string
+  title: string
+  won: boolean
+  score: number
+  rank: string
+  minutes: number
+  clues: number
+  clueTotal: number
+  conns: number
+  connTotal: number
+  hints: number
+  attempts: number
+  at: number
 }
 
 interface GameStore {
@@ -25,6 +45,12 @@ interface GameStore {
   answers: Record<string, string>
   startedAt: number | null
   customCases: Record<string, GameCase>
+  /** Tippelt (de még fel nem fedezett) nyomok id-i az aktuális aktában. */
+  hints: string[]
+  /** Lezárt nyomozások eredményei – statisztikához. */
+  records: CaseRecord[]
+  /** Napi akták állapota: dátumkulcs → kimenetel. */
+  dailyDone: Record<string, 'won' | 'lost'>
 
   // ---- efemer állapot ----
   toasts: Toast[]
@@ -41,6 +67,7 @@ interface GameStore {
   discoverClue: (clueId: string, c: GameCase) => void
   makeConnection: (connId: string, c: GameCase) => void
   completeObjective: (id: string, title: string) => void
+  useHint: (c: GameCase) => void
   setNotes: (v: string) => void
   setAnswer: (qid: string, oid: string) => void
   setModalOpen: (v: boolean) => void
@@ -52,6 +79,36 @@ interface GameStore {
 }
 
 const toastId = () => Date.now() + Math.random()
+
+const MAX_RECORDS = 200
+
+/** Rekord + napi állapot frissítése a nyomozás lezárásakor. */
+function withRecord(
+  c: GameCase,
+  won: boolean,
+  st: Pick<GameStore, 'discovered' | 'connections' | 'attempts' | 'hints' | 'startedAt' | 'records' | 'dailyDone'>,
+): Pick<GameStore, 'records' | 'dailyDone'> {
+  const minutes = st.startedAt ? Math.max(1, Math.round((Date.now() - st.startedAt) / 60000)) : 0
+  const score = won ? scoreOf(st.discovered.length, st.connections.length, st.attempts, st.hints.length) : 0
+  const rec: CaseRecord = {
+    code: c.code,
+    title: c.title,
+    won,
+    score,
+    rank: won ? rankOf(score).rank : '–',
+    minutes,
+    clues: st.discovered.length,
+    clueTotal: c.clues.length,
+    conns: st.connections.length,
+    connTotal: c.connections.length,
+    hints: st.hints.length,
+    attempts: st.attempts,
+    at: Date.now(),
+  }
+  const dailyDone = { ...st.dailyDone }
+  if (c.id === `gen-${dailyCode()}`) dailyDone[todayKey()] = won ? 'won' : 'lost'
+  return { records: [...st.records, rec].slice(-MAX_RECORDS), dailyDone }
+}
 
 export const useGameStore = create<GameStore>()(
   persist(
@@ -68,6 +125,9 @@ export const useGameStore = create<GameStore>()(
       answers: {},
       startedAt: null,
       customCases: {},
+      hints: [],
+      records: [],
+      dailyDone: {},
 
       toasts: [],
       modalOpen: false,
@@ -85,6 +145,7 @@ export const useGameStore = create<GameStore>()(
           attempts: 0,
           answers: {},
           startedAt: Date.now(),
+          hints: [],
           modalOpen: false,
           toasts: [],
         }),
@@ -128,6 +189,7 @@ export const useGameStore = create<GameStore>()(
         const clue = c.clues.find((x) => x.id === clueId)
         if (!clue) return
         set({ discovered: [...st.discovered, clueId] })
+        sfx('clue')
         get().pushToast({
           kind: 'clue',
           title: clue.deduction ? 'Új következtetés!' : 'Új nyom!',
@@ -143,6 +205,7 @@ export const useGameStore = create<GameStore>()(
         if (!conn) return
         if (!st.discovered.includes(conn.clueA) || !st.discovered.includes(conn.clueB)) return
         set({ connections: [...st.connections, connId] })
+        sfx('connection')
         get().pushToast({ kind: 'connection', title: 'Összefüggés felfedezve!', text: conn.insight })
         const clue = c.clues.find((x) => x.id === conn.resultClueId)
         if (clue && !get().discovered.includes(clue.id)) {
@@ -159,7 +222,28 @@ export const useGameStore = create<GameStore>()(
         const st = get()
         if (st.completedObjectives.includes(id)) return
         set({ completedObjectives: [...st.completedObjectives, id] })
+        sfx('objective')
         get().pushToast({ kind: 'objective', title: 'Célkitűzés teljesült', text: title })
+      },
+
+      useHint: (c) => {
+        const st = get()
+        if (st.caseId !== c.id) return
+        const candidates = c.clues.filter(
+          (x) => !x.deduction && !st.discovered.includes(x.id) && !st.hints.includes(x.id),
+        )
+        if (candidates.length === 0) {
+          get().pushToast({ kind: 'info', title: 'Nincs kérhető tipp', text: 'Minden közvetlen nyomot felfedeztél.' })
+          return
+        }
+        const clue = candidates[0]
+        set({ hints: [...st.hints, clue.id] })
+        sfx('hint')
+        get().pushToast({
+          kind: 'info',
+          title: 'Tipp a központból',
+          text: `A(z) „${clue.title}” nyomot itt érdemes keresned: ${clue.source}`,
+        })
       },
 
       setNotes: (v) => set({ notes: v }),
@@ -175,15 +259,18 @@ export const useGameStore = create<GameStore>()(
           return opt?.correct
         }).length
         if (correct === c.finalQuestions.length) {
-          set({ screen: 'won', modalOpen: false })
+          set({ screen: 'won', modalOpen: false, ...withRecord(c, true, get()) })
+          sfx('win')
           const o = c.objectives.find((x) => x.id === 'obj_submit')
           if (o) get().completeObjective(o.id, o.title)
         } else {
           const attempts = st.attempts + 1
           set({ attempts })
           if (attempts >= 3) {
-            set({ screen: 'lost', modalOpen: false })
+            set({ screen: 'lost', modalOpen: false, ...withRecord(c, false, get()) })
+            sfx('lose')
           } else {
+            sfx('error')
             get().pushToast({
               kind: 'error',
               title: `Hibás beküldés (${correct}/${c.finalQuestions.length} helyes)`,
@@ -223,6 +310,9 @@ export const useGameStore = create<GameStore>()(
         answers: s.answers,
         startedAt: s.startedAt,
         customCases: s.customCases,
+        hints: s.hints,
+        records: s.records,
+        dailyDone: s.dailyDone,
       }),
     },
   ),

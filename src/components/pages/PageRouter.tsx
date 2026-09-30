@@ -6,6 +6,7 @@ import { SearchPage } from './SearchPage'
 import { ProfilePage } from './ProfilePage'
 import { ForumPage } from './ForumPage'
 import { WebmailPage } from './WebmailPage'
+import { ChatPage } from './ChatPage'
 import { GalleryPage } from './GalleryPage'
 import { NewsPage } from './NewsPage'
 import { CompanyPage } from './CompanyPage'
@@ -23,6 +24,8 @@ function PageBody({ page, site }: { page: PageData; site: Website }) {
       return <ForumPage page={page} site={site} />
     case 'webmail':
       return <WebmailPage page={page} site={site} />
+    case 'chat':
+      return <ChatPage page={page} site={site} />
     case 'gallery':
       return <GalleryPage page={page} site={site} />
     case 'news':
